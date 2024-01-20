@@ -98,7 +98,7 @@ class MR(object):
             """ reward function loss """
             label_target = jax.lax.stop_gradient(labels)
             rf_loss = cross_ent_loss(logits, label_target)
-
+            rf_accuracy = jnp.mean((sum_pred_1 > sum_pred_2) == label_target)
             loss_collection['rf'] = rf_loss
             return tuple(loss_collection[key] for key in self.model_keys), locals()
 
@@ -107,6 +107,7 @@ class MR(object):
 
         metrics = dict(
             eval_rf_loss=aux_values['rf_loss'],
+            eval_rf_accuracy=aux_values['rf_accuracy'],
         )
 
         return metrics

@@ -42,9 +42,9 @@ class WandBLogger(object):
     @staticmethod
     def get_default_config(updates=None):
         config = ConfigDict()
-        config.online = False
+        config.online = True
         config.prefix = ''
-        config.project = 'PrefRL'
+        config.project = 'Preference-RL'
         config.output_dir = './reward_model'
         config.random_delay = 0.0
         config.group = config_dict.placeholder(str)
