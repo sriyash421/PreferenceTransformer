@@ -189,7 +189,7 @@ def main(_):
         pref_eval_dataset = r_tf.load_queries_with_indices(
             gym_env, dataset, int(FLAGS.num_query * 0.1), FLAGS.query_len,
             label_type=label_type, saved_indices=[human_indices, human_indices_2], saved_labels=human_labels,
-            balance=FLAGS.balance, scripted_teacher=True, window=FLAGS.window, 
+            balance=FLAGS.balance, scripted_teacher=True, 
             feedback_random=FLAGS.feedback_random, true_eval=true_eval)
 
     set_random_seed(FLAGS.seed)

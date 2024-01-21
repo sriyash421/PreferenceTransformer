@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from flax.training.train_state import TrainState
 import optax
 
-from .jax_utils import next_rng, value_and_multi_grad, mse_loss, cross_ent_loss 
+from .jax_utils import next_rng, value_and_multi_grad, mse_loss, cross_ent_loss, pref_accuracy
 
 
 class MR(object):
@@ -98,7 +98,7 @@ class MR(object):
             """ reward function loss """
             label_target = jax.lax.stop_gradient(labels)
             rf_loss = cross_ent_loss(logits, label_target)
-            rf_accuracy = jnp.mean((sum_pred_1 > sum_pred_2) == label_target)
+            rf_accuracy = pref_accuracy(logits, label_target)
             loss_collection['rf'] = rf_loss
             return tuple(loss_collection[key] for key in self.model_keys), locals()
 

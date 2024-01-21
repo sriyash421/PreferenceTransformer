@@ -8,12 +8,12 @@ import numpy as np
 from tqdm import tqdm
 from absl import app, flags
 from ml_collections import config_flags
-from tensorboardX import SummaryWriter
 
 import wrappers
 from dataset_utils import D4RLDataset, reward_from_preference, reward_from_preference_transformer, split_into_trajectories
 from evaluation import evaluate
 from learner import Learner
+from logger import Logger
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.40'
 
@@ -150,9 +150,8 @@ def main(_):
                             str(FLAGS.seed),
                             f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    summary_writer = SummaryWriter(save_dir,
-                                   write_to_disk=True)
-    os.makedirs(FLAGS.save_dir, exist_ok=True)
+    os.makedirs(save_dir, exist_ok=True)
+    logger = Logger(FLAGS, save_dir)
 
     env, dataset = make_env_and_dataset(FLAGS.env_name, FLAGS.seed)
 
@@ -171,17 +170,16 @@ def main(_):
         if i % FLAGS.log_interval == 0:
             for k, v in update_info.items():
                 if v.ndim == 0:
-                    summary_writer.add_scalar(f'training/{k}', v, i)
+                    logger.log(f'training/{k}', v, i)
                 else:
-                    summary_writer.add_histogram(f'training/{k}', v, i)
-            summary_writer.flush()
+                    logger.log_histogram(f'training/{k}', v, i)
 
         if i % FLAGS.eval_interval == 0:
-            eval_stats = evaluate(agent, env, FLAGS.eval_episodes)
+            eval_stats, evaluate_video = evaluate(agent, env, FLAGS.eval_episodes)
 
             for k, v in eval_stats.items():
-                summary_writer.add_scalar(f'evaluation/average_{k}s', v, i)
-            summary_writer.flush()
+                logger.log(f'evaluation/average_{k}s', v, i)
+            logger.log_video('evaluation/episode', evaluate_video, i)
 
             eval_returns.append((i, eval_stats['return']))
             np.savetxt(os.path.join(save_dir, 'progress.txt'),

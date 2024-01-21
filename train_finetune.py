@@ -13,6 +13,7 @@ from dataset_utils import (Batch, D4RLDataset, ReplayBuffer,
                            split_into_trajectories)
 from evaluation import evaluate
 from learner import Learner
+from logger import Logger
 
 FLAGS = flags.FLAGS
 
@@ -85,11 +86,9 @@ def make_env_and_dataset(env_name: str,
 
 
 def main(_):
-    summary_writer = SummaryWriter(os.path.join(FLAGS.save_dir, 'tb',
-                                                str(FLAGS.seed)),
-                                   write_to_disk=True)
-    os.makedirs(FLAGS.save_dir, exist_ok=True)
 
+    os.makedirs(FLAGS.save_dir, exist_ok=True)
+    logger = Logger(FLAGS, save_dir)
     env, dataset = make_env_and_dataset(FLAGS.env_name, FLAGS.seed)
 
     action_dim = env.action_space.shape[0]
@@ -127,8 +126,7 @@ def main(_):
             if done:
                 observation, done = env.reset(), False
                 for k, v in info['episode'].items():
-                    summary_writer.add_scalar(f'training/{k}', v,
-                                              info['total']['timesteps'])
+                    logger.log(f'training/{k}', v, info['total']['timesteps'])
         else:
             info = {}
             info['total'] = {'timesteps': i}
@@ -145,17 +143,16 @@ def main(_):
         if i % FLAGS.log_interval == 0:
             for k, v in update_info.items():
                 if v.ndim == 0:
-                    summary_writer.add_scalar(f'training/{k}', v, i)
+                    logger.log(f'training/{k}', v, i)
                 else:
-                    summary_writer.add_histogram(f'training/{k}', v, i)
-            summary_writer.flush()
+                    logger.log_histogram(f'training/{k}', v, i)
 
         if i % FLAGS.eval_interval == 0:
             eval_stats = evaluate(agent, env, FLAGS.eval_episodes)
 
             for k, v in eval_stats.items():
-                summary_writer.add_scalar(f'evaluation/average_{k}s', v, i)
-            summary_writer.flush()
+                logger.log(f'evaluation/average_{k}s', v, i)
+            logger.log_video('evaluation/episode', evaluate_video, i)
 
             eval_returns.append((i, eval_stats['return']))
             np.savetxt(os.path.join(FLAGS.save_dir, f'{FLAGS.seed}.txt'),
