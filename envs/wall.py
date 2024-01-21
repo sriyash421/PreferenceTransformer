@@ -6,18 +6,27 @@ import wandb
 
 from d4rl.pointmaze import MazeEnv
 from .base import MultiModalEnv
-  
+
+WALL_ENV = \
+        "#######\\"+\
+        "#OOOOO#\\"+\
+        "#OO#OO#\\"+\
+        "#OO#OG#\\"+\
+        "#OO#OO#\\"+\
+        "#OOOOO#\\"+\
+        "#######"
+
 class WallEnv(MultiModalEnv):
-    def __init__(self, maze_spec, reward_type, reset_target, dataset_path, **kwargs):
+    def __init__(self, dataset_path, **kwargs):
         super().__init__(dataset_path=dataset_path, **kwargs)
 
         self.env = MazeEnv(
-            maze_spec=maze_spec,
-            reward_type=reward_type,
-            reset_target=reset_target,
+            maze_spec=WALL_ENV,
+            reward_type='sparse',
+            reset_target=False,
             **kwargs
         )
-        self.env.set_target()
+
         self.action_space = self.env.action_space
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(2,)) #self.env.observation_space
 
@@ -28,6 +37,7 @@ class WallEnv(MultiModalEnv):
         self.str_maze_spec = self.env.str_maze_spec
         self.sim = self.env.sim
         self._max_episode_steps = kwargs.get('max_episode_steps', 300)
+        self.current_mode = 0
 
     @property
     def target(self):

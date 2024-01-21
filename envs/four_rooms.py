@@ -3,13 +3,26 @@ import numpy as np
 import gym
 
 from d4rl.pointmaze import MazeEnv
-from envs.multi_env import MultiModalEnv
+from .base import MultiModalEnv
 import wandb
 import matplotlib.pyplot as plt
 
 
 
-map_dict = {"ROOM_MAZE": ROOM_MAZE}
+FOUR_ROOMS_ENV = \
+        '#################\\'+\
+        '#OOOOOOO#OOOOOOO#\\'+\
+        '#OOOOOOO#OOOOOOO#\\'+\
+        '#OOOOOOOOOOOOOOO#\\'+\
+        '#OOOOOOO#OOOOOOO#\\'+\
+        '#OOOOOOO#OOOOOOO#\\'+\
+        '####O#######O####\\'+\
+        '#OOOOOOO#OOOOOOO#\\'+\
+        '#OOOOOOO#OOOOOOO#\\'+\
+        '#OOOOOOOOOOOOOOO#\\'+\
+        '#OOOOOOO#OOOOOGO#\\'+\
+        '#OOOOOOO#OOOOOOO#\\'+\
+        "#################"
 
 
 TARGET = None
@@ -67,7 +80,7 @@ class RoomEnv(MultiModalEnv):
     def __init__(self, *args, maze_map="ROOM_MAZE", fixed_start=True, **kwargs):
         super(MultiModalEnv, self).__init__()
         self.env = MazeEnv(
-            maze_spec=map_dict[maze_map],
+            maze_spec=FOUR_ROOMS_ENV,
             reward_type='sparse',
             reset_target=False,
             **kwargs
