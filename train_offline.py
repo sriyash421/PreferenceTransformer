@@ -73,10 +73,11 @@ def normalize(dataset, env_name, max_episode_steps=1000):
     normalized_rewards = []
     for i in range(dataset.size):
         _reward = dataset.rewards[i]
-        if 'antmaze' in env_name:
+        if 'antmaze' in env_name or 'maze' in env_name:
             _, len_trj = trj_mapper[i]
             _reward -= min_return / len_trj
-        _reward /= max_return - min_return
+        else:
+            _reward /= max_return - min_return
         # if ('halfcheetah' in env_name or 'walker2d' in env_name or 'hopper' in env_name):
         _reward *= max_episode_steps
         normalized_rewards.append(_reward)
@@ -115,12 +116,12 @@ def make_env_and_dataset(env_name: str,
 
     if FLAGS.use_reward_model:
         normalize(dataset, FLAGS.env_name, max_episode_steps=env.env.env._max_episode_steps)
-        if 'antmaze' in FLAGS.env_name:
+        if 'antmaze' in FLAGS.env_name or 'maze' in FLAGS.env_name:
             dataset.rewards -= 1.0
         if ('halfcheetah' in FLAGS.env_name or 'walker2d' in FLAGS.env_name or 'hopper' in FLAGS.env_name):
             dataset.rewards += 0.5
     else:
-        if 'antmaze' in FLAGS.env_name:
+        if 'antmaze' in FLAGS.env_name  or 'maze' in FLAGS.env_name:
             dataset.rewards -= 1.0
             # See https://github.com/aviralkumar2907/CQL/blob/master/d4rl/examples/cql_antmaze_new.py#L22
             # but I found no difference between (x - 0.5) * 4 and x - 1.0

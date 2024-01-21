@@ -92,3 +92,28 @@ class FullyConnectedQFunction(nn.Module):
 
         x = FullyConnectedNetwork(output_dim=1, arch=self.arch, orthogonal_init=self.orthogonal_init, activations=activations, activation_final=activation_final)(x)
         return jnp.squeeze(x, -1)
+
+
+class FullyConnectedStateQFunction(nn.Module):
+    observation_dim: int
+    action_dim: int
+    arch: str = '256-256'
+    orthogonal_init: bool = False
+    activations: str = 'relu'
+    activation_final: str = 'none'
+
+    @nn.compact
+    def __call__(self, observations, actions):
+        x = observations #jnp.concatenate([observations, actions], axis=-1)
+
+        activations = {
+            'relu': nn.relu,
+            'leaky_relu': nn.leaky_relu,
+        }[self.activations]
+        activation_final = {
+            'none': None,
+            'tanh': nn.tanh,
+        }[self.activation_final]
+
+        x = FullyConnectedNetwork(output_dim=1, arch=self.arch, orthogonal_init=self.orthogonal_init, activations=activations, activation_final=activation_final)(x)
+        return jnp.squeeze(x, -1)

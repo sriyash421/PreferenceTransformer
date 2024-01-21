@@ -76,8 +76,8 @@ class MR(object):
             act_2 = batch['actions_2']
             labels = batch['labels']
            
-            B, T, obs_dim = batch['observations'].shape
-            B, T, act_dim = batch['actions'].shape
+            B, S, T, obs_dim = batch['observations'].shape
+            B, S, T, act_dim = batch['actions'].shape
             
             obs_1 = obs_1.reshape(-1, obs_dim)
             obs_2 = obs_2.reshape(-1, obs_dim)
@@ -87,9 +87,10 @@ class MR(object):
             rf_pred_1 = self.rf.apply(train_params['rf'], obs_1, act_1)
             rf_pred_2 = self.rf.apply(train_params['rf'], obs_2, act_2)
             
-            sum_pred_1 = jnp.mean(rf_pred_1.reshape(B, T), axis=1).reshape(-1, 1)
-            sum_pred_2 = jnp.mean(rf_pred_2.reshape(B, T), axis=1).reshape(-1, 1)
+            sum_pred_1 = jnp.mean(rf_pred_1.reshape(B, S, T), axis=2).reshape(-1, 1)
+            sum_pred_2 = jnp.mean(rf_pred_2.reshape(B, S, T), axis=2).reshape(-1, 1)
             logits = jnp.concatenate([sum_pred_1, sum_pred_2], axis=1)
+            labels = labels.reshape(-1, 2)
             
             loss_collection = {}
 
@@ -131,8 +132,8 @@ class MR(object):
             # n_obs_1 = batch['next_observations']
             # n_obs_2 = batch['next_observations_2']
             
-            B, T, obs_dim = batch['observations'].shape
-            B, T, act_dim = batch['actions'].shape
+            B, S, T, obs_dim = batch['observations'].shape
+            B, S, T, act_dim = batch['actions'].shape
             
             obs_1 = obs_1.reshape(-1, obs_dim)
             obs_2 = obs_2.reshape(-1, obs_dim)
@@ -142,10 +143,11 @@ class MR(object):
             rf_pred_1 = self.rf.apply(train_params['rf'], obs_1, act_1)
             rf_pred_2 = self.rf.apply(train_params['rf'], obs_2, act_2)
             
-            sum_pred_1 = jnp.mean(rf_pred_1.reshape(B, T), axis=1).reshape(-1, 1)
-            sum_pred_2 = jnp.mean(rf_pred_2.reshape(B, T), axis=1).reshape(-1, 1)
+            sum_pred_1 = jnp.mean(rf_pred_1.reshape(B, S, T), axis=2).reshape(-1, 1)
+            sum_pred_2 = jnp.mean(rf_pred_2.reshape(B, S, T), axis=2).reshape(-1, 1)
             logits = jnp.concatenate([sum_pred_1, sum_pred_2], axis=1)
-            
+            labels = labels.reshape(-1, 2)
+
             loss_collection = {}
 
             rng, split_rng = jax.random.split(rng)
@@ -189,8 +191,8 @@ class MR(object):
             # n_obs_1 = batch['next_observations']
             # n_obs_2 = batch['next_observations_2']
             
-            B, T, obs_dim = batch['observations'].shape
-            B, T, act_dim = batch['actions'].shape
+            B, S, T, obs_dim = batch['observations'].shape
+            B, S, T, act_dim = batch['actions'].shape
             
             obs_1 = obs_1.reshape(-1, obs_dim)
             obs_2 = obs_2.reshape(-1, obs_dim)
@@ -200,10 +202,10 @@ class MR(object):
             rf_pred_1 = self.rf.apply(train_params['rf'], obs_1, act_1)
             rf_pred_2 = self.rf.apply(train_params['rf'], obs_2, act_2)
             
-            sum_pred_1 = jnp.mean(rf_pred_1.reshape(B,T), axis=1).reshape(-1,1)
-            sum_pred_2 = jnp.mean(rf_pred_2.reshape(B,T), axis=1).reshape(-1,1)
+            sum_pred_1 = jnp.mean(rf_pred_1.reshape(B,S,T), axis=2).reshape(-1,1)
+            sum_pred_2 = jnp.mean(rf_pred_2.reshape(B,S,T), axis=2).reshape(-1,1)
             logits = jnp.concatenate([sum_pred_1, sum_pred_2], axis=1)
-
+            labels = labels.reshape(-1, 2)
             return logits, labels
 
         def loss_fn(train_params, lmd, tau, rng):
