@@ -12,12 +12,12 @@ def evaluate(agent: nn.Module, env: gym.Env,
     frames = []
     for i in trange(num_episodes, desc='evaluation', leave=False):
         observation, done = env.reset(), False
-        if i<10:
+        if i<5:
             frames.append(env.render(mode='rgb_array'))
         while not done:
             action = agent.sample_actions(observation, temperature=0.0)
             observation, _, done, info = env.step(action)
-            if i<10:
+            if i<5:
                 frames.append(env.render(mode='rgb_array'))
 
         for k in stats.keys():
