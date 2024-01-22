@@ -25,7 +25,7 @@ from viskit.logging import logger, setup_logger
 from .MR import MR
 from .replay_buffer import get_d4rl_dataset, index_batch
 from .utils import Timer, define_flags_with_default, set_random_seed, get_user_flags, prefix_metrics, WandBLogger, save_pickle
-
+from .visualise_reward import plot_values_2d
 # Jax memory
 # os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.50'
@@ -197,7 +197,7 @@ def main(_):
                 for key, val in prefix_metrics(reward_model.evaluation(batch_eval), 'reward').items():
                     metrics[key].append(val)
             if not criteria_key:
-                if "antmaze" in FLAGS.env and not "dense" in FLAGS.env and not true_eval:
+                if "antmaze" in FLAGS.env and not "dense" in FLAGS.env:
                     # choose train loss as criteria.
                     criteria_key = train_loss
                 else:
@@ -219,6 +219,11 @@ def main(_):
                 metrics[f"{key}_best"] = criteria
                 save_data = {"reward_model": reward_model, "variant": variant, "epoch": epoch}
                 save_pickle(save_data, "best_model.pkl", save_dir)
+
+        if epoch % 100 == 0:
+            fig = plot_values_2d(gym_env, reward_model, "reward")
+            wb_logger.log_image(fig, "reward_plots")
+            gym_env.plot_gt(True)
 
         for key, val in metrics.items():
             if isinstance(val, list):

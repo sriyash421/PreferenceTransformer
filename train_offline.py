@@ -9,6 +9,7 @@ from tqdm import tqdm
 from absl import app, flags
 from ml_collections import config_flags
 
+import envs
 import wrappers
 from dataset_utils import D4RLDataset, reward_from_preference, reward_from_preference_transformer, split_into_trajectories
 from evaluation import evaluate
@@ -88,7 +89,7 @@ def normalize(dataset, env_name, max_episode_steps=1000):
 def make_env_and_dataset(env_name: str,
                          seed: int) -> Tuple[gym.Env, D4RLDataset]:
     env = gym.make(env_name)
-
+    env = gym.wrappers.TimeLimit(env, max_episode_steps=env._max_episode_steps)
     env = wrappers.EpisodeMonitor(env)
     env = wrappers.SinglePrecision(env)
 

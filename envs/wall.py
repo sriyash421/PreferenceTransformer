@@ -36,7 +36,7 @@ class WallEnv(MultiModalEnv):
         self.env.empty_and_goal_locations = [(3, 1)]
         self.str_maze_spec = self.env.str_maze_spec
         self.sim = self.env.sim
-        self._max_episode_steps = kwargs.get('max_episode_steps', 300)
+        # self._max_episode_steps = kwargs.get('max_episode_steps', 300)
         self.current_mode = 0
 
     @property
@@ -116,41 +116,10 @@ class WallEnv(MultiModalEnv):
             ax.scatter(target_p[0], target_p[1], c='r')
         plt.tight_layout()
         if wandb_log:
-            wandb.log({'eval/ground_truth': wandb.Image(fig)})
+            wandb.log({'reward_ground_truth': wandb.Image(fig)})
         else:
             plt.savefig('reward_plot')
         plt.close(fig)
         return points, target_p
 
-    # def plot_reward_model(self, reward_model=None, step=None):
-    #     points, target_p = self.plot_gt(True)
-    #     import torch
-    #     with torch.no_grad():
-    #         plt.figure()
-    #         points = torch.tensor(points, dtype=torch.float32).to(next(reward_model.parameters()).device)
-    #         r0 = reward_model(points).cpu().numpy()
-    #         fig = plt.figure()
-    #         plt.imshow((r0.reshape(100, 100)).T, cmap='viridis')
-    #         plt.scatter(target_p[0], target_p[1], c='r')
-    #         plt.colorbar()
-    #         wandb.log({'eval/reconstructed reward': wandb.Image(fig)})
-    #         plt.close(fig)
-    
-    # def plot_reward_model_with_z(self, model, z, mode_n, step=None):
-    #     points, target_p = self.plot_gt(True)
-
-    #     import torch
-    #     with torch.no_grad():
-    #         plt.figure()
-    #         points = torch.tensor(points[0], dtype=torch.float32).to(next(model.parameters()).device)
-    #         z = torch.from_numpy(z).reshape(1,-1).repeat((points.shape[0], 1)).to(next(model.parameters()).device)
-    #         points = torch.cat((points, z), dim=-1)
-    #         r0 = model(points).cpu().numpy()
-    #         fig = plt.figure()
-    #         plt.imshow((r0.reshape(100, 100)).T, cmap='viridis')
-    #         plt.scatter(target_p[0], target_p[1], c='r')
-    #         plt.colorbar()
-    #         wandb.log({f'eval/{mode_n}_reconstructed reward': wandb.Image(fig)})
-    #         plt.close(fig)
-            
     

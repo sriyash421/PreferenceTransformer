@@ -20,7 +20,8 @@ class SinglePrecision(gym.ObservationWrapper):
             self.observation_space = Dict(obs_spaces)
         else:
             raise NotImplementedError
-
+        self._max_episode_steps = env._max_episode_steps
+        
     def observation(self, observation: np.ndarray) -> np.ndarray:
         if isinstance(observation, np.ndarray):
             return observation.astype(np.float32)

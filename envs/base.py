@@ -31,6 +31,12 @@ class MultiModalEnv(gym.Env):
     def get_num_modes(self):
         return 2
     
+    def get_obs_grid(self):
+        return np.mgrid[
+            self.x_range[0]:self.x_range[1]:50j,
+            self.x_range[0]:self.x_range[1]:50j
+        ], 50
+    
     def reset_mode(self, mode_n):
         self.current_mode = mode_n
     

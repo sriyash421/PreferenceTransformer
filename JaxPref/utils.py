@@ -98,6 +98,10 @@ class WandBLogger(object):
     def log(self, *args, **kwargs):
         self.run.log(*args, **kwargs)
 
+    def log_image(self, im, key):
+        im = wandb.Image(im)
+        self.run.log({key: im})
+
     def save_pickle(self, obj, filename):
         with open(os.path.join(self.config.output_dir, filename), 'wb') as fout:
             pickle.dump(obj, fout)

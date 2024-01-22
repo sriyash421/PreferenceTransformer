@@ -12,6 +12,7 @@ class EpisodeMonitor(gym.ActionWrapper):
         super().__init__(env)
         self._reset_stats()
         self.total_timesteps = 0
+        self._max_episode_steps = env._max_episode_steps
 
     def _reset_stats(self):
         self.reward_sum = 0.0

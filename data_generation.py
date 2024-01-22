@@ -47,6 +47,8 @@ def main():
     args = parser.parse_args()
 
     env = gym.make(args.env_name)
+    target_goal = env.target
+    print(target_goal)
     maze = env.str_maze_spec
     max_episode_steps = env._max_episode_steps
 
@@ -97,14 +99,13 @@ def main():
 
     # Labelling data with rewards
     all_obs = data['observations']
-    target_goal = env._target
 
     if args.relabel_type == 'dense':
         _rew = np.exp(-np.linalg.norm(all_obs[:,:2] - target_goal, axis=1))
     elif args.relabel_type == 'sparse':
         _rew = (np.linalg.norm(all_obs[:,:2] - target_goal, axis=1) <= 0.5).astype(np.float32)
-    else:
-        _rew = rdataset['rewards'].value
+    # else:
+    #     _rew = dataset['rewards']
 
     data['rewards'] = _rew
 

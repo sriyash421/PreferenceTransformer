@@ -74,7 +74,7 @@ def main(_):
             gym_env, dataset, FLAGS.num_query, FLAGS.query_len, FLAGS.set_len,
             data_dir=base_path, label_type=label_type, balance=FLAGS.balance
     )
-    
+    gym_env.plot_gt()
     print("Saved queries: ", query_path)
 
 if __name__ == '__main__':
