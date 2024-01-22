@@ -7,6 +7,9 @@ import gym
 import numpy as np
 import jax.numpy as jnp
 from tqdm import tqdm, trange
+import torch
+
+from JaxPref.VAE_R import sample_latent
 
 Batch = collections.namedtuple(
     'Batch',
@@ -230,6 +233,37 @@ def reward_from_preference(
     dataset.rewards = new_r.copy()
     return dataset
 
+def reward_from_preference(
+    env_name: str,
+    dataset: D4RLDataset,
+    reward_model,
+    batch_size: int = 256,
+):
+    trajs = split_into_trajectories(
+        dataset.observations,
+        dataset.actions,
+        dataset.rewards,
+        dataset.masks,
+        dataset.dones_float,
+        dataset.next_observations
+    )
+    new_r = np.zeros_like(dataset.rewards)
+
+    for trj_idx, traj in tqdm(enumerate(trajs), total=len(trajs), desc="chunk trajectories"):
+        _obs = []
+        for _o, _, _, _, _, _ in traj:
+            _obs.append(_o)
+
+        traj_len = len(traj)
+        _obs = np.asarray(_obs)
+        _latent = np.repeat(sample_latent(reward_model, 1)[0], _obs.shape[0], axis=0)
+
+        inputs = torch.from_numpy(np.concatenate([_obs, _latent], axis=-1)).float().to(next(reward_model.parameters()).device)
+        rewards = reward_model.get_reward(inputs).detach().cpu().numpy().flatten()
+        new_r[trj_idx: trj_idx+traj_len] = rewards
+
+    dataset.rewards = new_r.copy()
+    return dataset
 
 def reward_from_preference_transformer(
         env_name: str,

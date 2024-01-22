@@ -44,7 +44,7 @@ class WandBLogger(object):
         config = ConfigDict()
         config.online = True
         config.prefix = ''
-        config.project = 'Preference-RL'
+        config.project = os.environ.get('WANDB_PROJECT', 'JaxPref')
         config.output_dir = './reward_model'
         config.random_delay = 0.0
         config.group = config_dict.placeholder(str)

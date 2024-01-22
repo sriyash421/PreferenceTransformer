@@ -22,7 +22,7 @@ class WallEnv(MultiModalEnv):
 
         self.env = MazeEnv(
             maze_spec=WALL_ENV,
-            reward_type='sparse',
+            reward_type='dense',
             reset_target=False,
             **kwargs
         )
@@ -36,7 +36,7 @@ class WallEnv(MultiModalEnv):
         self.env.empty_and_goal_locations = [(3, 1)]
         self.str_maze_spec = self.env.str_maze_spec
         self.sim = self.env.sim
-        # self._max_episode_steps = kwargs.get('max_episode_steps', 300)
+        self._max_episode_steps = kwargs.get('max_episode_steps', 300)
         self.current_mode = 0
 
     @property

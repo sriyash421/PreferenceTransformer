@@ -34,3 +34,12 @@ register(
         'dataset_path':'/mmfs1/gscratch/weirdlab/sriyash/PreferenceTransformer/envs/datasets/multi-maze2d-wall-v0-noisy.hdf5'
     }
 )
+
+register(
+    id='multi-maze2d-rooms-v0',
+    entry_point='envs.four_rooms:RoomEnv',
+    max_episode_steps=600,
+    kwargs={
+        'dataset_path':'/mmfs1/gscratch/weirdlab/sriyash/PreferenceTransformer/envs/datasets/multi-maze2d-wall-v0-noisy.hdf5'
+    }
+)

@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
+import math
 
 class PreferenceDataset(Dataset):
     def __init__(self, pref_dataset):

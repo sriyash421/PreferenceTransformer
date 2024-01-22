@@ -77,39 +77,46 @@ vec_mode1 = np.vectorize(mode1_fn)
 vec_mode2 = np.vectorize(mode2_fn)
 
 class RoomEnv(MultiModalEnv):
-    def __init__(self, *args, maze_map="ROOM_MAZE", fixed_start=True, **kwargs):
-        super(MultiModalEnv, self).__init__()
+    def __init__(self, dataset_path, **kwargs):
+        super().__init__(dataset_path=dataset_path, **kwargs)
+
         self.env = MazeEnv(
             maze_spec=FOUR_ROOMS_ENV,
-            reward_type='sparse',
+            reward_type='dense',
             reset_target=False,
             **kwargs
         )
+
         self.action_space = self.env.action_space
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(2,)) #self.env.observation_space
-        if fixed_start:
-            self.env.empty_and_goal_locations = [(1, 1)]
+
         self.x_range = (0, 12)
         self.y_range = (0, 16)
+
         global TARGET
         TARGET = np.array(self.env._target)
         self.str_maze_spec = self.env.str_maze_spec
-        # self.plot_gt()
-    
+        self.str_maze_spec = self.env.str_maze_spec
+        self.sim = self.env.sim
+        self._max_episode_steps = kwargs.get('max_episode_steps', 600)
+        self.current_mode = 0
+
+    @property
+    def target(self):
+        return self.env._target
+
+    @property
+    def velocity(self):
+        return self.env.data.qvel[:2]
+
     def reset(self):
         obs = self.env.reset()
-        self.current_mode = np.random.randint(2)
         return obs[:2]
 
     def step(self, actions):
         obs, reward, done, info = self.env.step(actions)
-        # reward = self.get_reward(obs[None,None])[0, 0]
-        # info['success'] = float(np.linalg.norm(obs[:2] - np.array(self.env._target)) < 0.5)
+        info['vel'] = obs[2:4]
         return obs[:2], reward, done, info
-    
-    def get_ground_truth(self, state, target=None):
-        target = target or np.array(self.env._target).reshape(1, -1)
-        return -np.linalg.norm(state[:, :, 0:2] - target, axis=2)
     
     def get_reward(self, state, mode=None):
         mode = mode or self.current_mode
@@ -117,73 +124,48 @@ class RoomEnv(MultiModalEnv):
             return self._mode_0_r(state)
         else:
             return self._mode_1_r(state)
-        
+    
     def get_preference_rewards(self, state1, state2, target=None, mode=None): # states are pf size B x T x STATE_DIM
         mode = mode or np.random.randint(2)
-
         if mode == 0:
-            r0 = self._mode_0_r(state1, target)
-            r1 = self._mode_0_r(state2, target)
+            r0 = self._mode_0_r(state1)
+            r1 = self._mode_0_r(state2)
         else:
-            r0 = self._mode_1_r(state1, target)
-            r1 = self._mode_1_r(state2, target)
+            r0 = self._mode_1_r(state1)
+            r1 = self._mode_1_r(state2)
         return r0, r1
     
     def _mode_0_r(self, state, target=None):
-        target = target or np.array(self.env._target).reshape(1, 1, -1)
         return vec_mode1(state[:, :, 0], state[:, :, 1])
     
     def _mode_1_r(self, state, target=None):
-        target = target or np.array(self.env._target).reshape(1, -1)
         return vec_mode2(state[:, :, 0], state[:, :, 1])
 
     def plot_gt(self, wandb_log=False):
-        xv, yv = np.meshgrid(np.linspace(*self.x_range, 12), np.linspace(*self.y_range, 16), indexing='ij')
+        xv, yv = np.meshgrid(np.linspace(*self.x_range, 120), np.linspace(*self.y_range, 160), indexing='ij')
         points = np.concatenate([xv.reshape(-1, 1), yv.reshape(-1, 1)], axis=1)[None]
         r = [self._mode_0_r(points),self._mode_1_r(points)]
         fig, axs = plt.subplots(1, 2, figsize=(10, 8))
         axs_flat = axs.flatten()
         for i, ax in enumerate(axs_flat):
-            im = ax.imshow((r[i].reshape(12, 16)).T, cmap='viridis', interpolation='nearest')
-            ax.scatter(TARGET[0], TARGET[1], c='r')
-            ax.scatter(3, 12, c='g')
-            ax.scatter(9, 4, c='b')
-            ax.scatter(1,1, c='black')
+            im = ax.imshow((r[i].reshape(120, 160)).T, cmap='viridis', interpolation='nearest')
+            ax.scatter(TARGET[0]*10, TARGET[1]*10, c='r')
+            ax.scatter(30, 120, c='g')
+            ax.scatter(90, 40, c='b')
+            ax.scatter(10,10, c='black')
         plt.tight_layout()
         if wandb_log:
             wandb.log({'eval/ground_truth': wandb.Image(fig)})
         else:
-            plt.show()
+            plt.savefig('reward_plot.png')
         plt.close(fig)
         return points
 
-    def plot_reward_model(self, reward_model=None, step=None):
-        points = self.plot_gt(True)
-        import torch
-        with torch.no_grad():
-            plt.figure()
-            points = torch.tensor(points, dtype=torch.float32).to(next(reward_model.parameters()).device)
-            r0 = reward_model(points).cpu().numpy()
-            fig = plt.figure()
-            plt.imshow((r0.reshape(12, 16)).T, cmap='viridis')
-            plt.colorbar()
-            wandb.log({'eval/reconstructed reward': wandb.Image(fig)})
-            plt.close(fig)
-    
-    def plot_reward_model_with_z(self, model, z, mode_n, step=None):
-        points = self.plot_gt(True)
-        import torch
-        with torch.no_grad():
-            plt.figure()
-            points = torch.tensor(points[0], dtype=torch.float32).to(next(model.parameters()).device)
-            z = torch.from_numpy(z).reshape(1,-1).repeat((points.shape[0], 1)).to(next(model.parameters()).device)
-            points = torch.cat((points, z), dim=-1)
-            r0 = model(points).cpu().numpy()
-            fig = plt.figure()
-            plt.imshow((r0.reshape(12, 16)).T, cmap='viridis')
-            plt.colorbar()
-            wandb.log({f'eval/{mode_n}_reconstructed reward': wandb.Image(fig)})
-            plt.close(fig)
-
     def render(self, mode="rgb_array"):
         return self.env.render(mode)
+    
+    def get_obs_grid(self):
+        return np.mgrid[
+            self.x_range[0]:self.x_range[1]:120j,
+            self.y_range[0]:self.y_range[1]:160j
+        ], 120, 160, (TARGET[0]*10, TARGET[1]*10)

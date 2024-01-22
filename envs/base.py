@@ -35,7 +35,7 @@ class MultiModalEnv(gym.Env):
         return np.mgrid[
             self.x_range[0]:self.x_range[1]:50j,
             self.x_range[0]:self.x_range[1]:50j
-        ], 50
+        ], 50, 50, 50*(np.array(self.target) - self.x_range[0]) / (self.x_range[1] - self.x_range[0])
     
     def reset_mode(self, mode_n):
         self.current_mode = mode_n
@@ -46,6 +46,8 @@ class MultiModalEnv(gym.Env):
     def plot_reward_model_with_z(self, model, z, mode_n, step):
         raise NotImplementedError
     
+    def get_success(self, state):
+        return np.linalg.norm(state - self.target) < 0.5
     def get_dataset(self):
         if self.dataset_path is None:
             raise ValueError("Offline env not configured with a dataset path.")

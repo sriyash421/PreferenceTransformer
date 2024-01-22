@@ -20,9 +20,9 @@ import JaxPref.reward_transform as r_tf
 
 from .sampler import TrajSampler
 from viskit.logging import logger, setup_logger
-from .VAE_R import VAEModel, PreferenceDataset
+from .VAE_R import VAEModel, PreferenceDataset, Annealer
 from .utils import define_flags_with_default, set_random_seed, get_user_flags, WandBLogger, save_pickle
-from .visualise_reward import plot_values_2d, plot_values_2d_with_z
+from .visualise_reward import plot_values_2d, plot_values_2d_with_z, plot_train_values
 # Jax memory
 # os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.50'
@@ -81,23 +81,29 @@ FLAGS_DEF = define_flags_with_default(
     kl_weight=0.1,
     learned_prior=False,
     latent_dim=32,
+    use_annealing=False,
 )
 
 from torch.optim import Adam
 
-def loss_function(x_hat, x, mean, log_var, model, kl_loss_weight, prefix='train'):
-    reproduction_loss = torch.nn.functional.cross_entropy(x_hat, x, reduction='sum')
-    KLD      = - kl_loss_weight * torch.sum(1+ (log_var-model.log_var) - (log_var-model.log_var).exp() - (mean.pow(2)-model.mean.pow(2))/(model.log_var.exp()))
+def loss_function(x_hat, x, mean, log_var, model, kl_loss_weight, kl_annealer, prefix='train'):
+    reproduction_loss = torch.nn.functional.binary_cross_entropy(x_hat, x, reduction='sum')
+    _KLD      = - torch.sum(1+ (log_var-model.log_var) - (log_var-model.log_var).exp() - (mean.pow(2)-model.mean.pow(2))/(model.log_var.exp()))
+
+    if kl_annealer:
+        KLD = kl_annealer(_KLD)
+    else:
+        KLD = _KLD * kl_loss_weight
     
     predicted_class = torch.argmax(x_hat, axis=1)
     target_class = torch.argmax(x, axis=1)
     accuracy = torch.mean((predicted_class == target_class).float())
 
     metrics = {
-        f"{prefix}/reproduction_loss": reproduction_loss.item(),
-        f"{prefix}/KLD": KLD.item(),
-        f"{prefix}/loss": reproduction_loss.item() + KLD.item(),
-        f"{prefix}/accuracy": accuracy.item(),
+        f"{prefix}reproduction_loss": reproduction_loss.item(),
+        f"{prefix}KLD": _KLD.item(),
+        f"{prefix}rf_loss": reproduction_loss.item() + KLD.item(),
+        f"{prefix}rf_accuracy": accuracy.item(),
     }
     return reproduction_loss + KLD, metrics
 
@@ -196,6 +202,12 @@ def main(_):
     train_loss = "train/loss"
 
     reward_model.to(device)
+
+    if FLAGS.use_annealing:
+        kl_annealer = Annealer(FLAGS.n_epochs // 4, 'cosine', cyclical=True)
+    else:
+        kl_annealer = None
+
     for epoch in range(FLAGS.n_epochs + 1):
         metrics = defaultdict(list)
         metrics['epoch'] = epoch
@@ -226,6 +238,11 @@ def main(_):
             # for using early stopping with train loss.
             metrics[train_loss] = [float(FLAGS.query_len)]
 
+        if kl_annealer:
+            wb_logger.log({"train/kl_weight": kl_annealer.slope()})
+            kl_annealer.step()
+        else:
+            wb_logger.log({"train/kl_weight": kl_weight})
         # eval phase
         if epoch % FLAGS.eval_period == 0:
             for batch_idx, batch in enumerate(test_loader):
