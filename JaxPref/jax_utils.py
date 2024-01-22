@@ -25,7 +25,6 @@ def next_rng():
 def extend_and_repeat(tensor, axis, repeat):
     return jnp.repeat(jnp.expand_dims(tensor, axis), repeat, axis=axis)
 
-
 def mse_loss(val, target):
     return jnp.mean(jnp.square(val - target))
 

@@ -156,3 +156,5 @@ transformer_exp/
 result/
 wandb/
 human_label/
+*.png
+pref_datasets
