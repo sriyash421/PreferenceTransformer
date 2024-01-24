@@ -70,12 +70,22 @@ def main(_):
     dataset['actions'] = np.clip(dataset['actions'], -FLAGS.clip_action, FLAGS.clip_action)
 
     base_path = os.path.join(FLAGS.data_dir, FLAGS.env)
-    query_path = r_tf.get_queries_from_multi(
+    query_path, all_obs = r_tf.get_queries_from_multi(
             gym_env, dataset, FLAGS.num_query, FLAGS.query_len, FLAGS.set_len,
             data_dir=base_path, label_type=label_type, balance=FLAGS.balance
     )
     gym_env.plot_gt()
     print("Saved queries: ", query_path)
+
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.scatter(all_obs[:, 0], all_obs[:, 1], s=1)
+    plt.xlim(gym_env.x_range)
+    if hasattr(gym_env, 'y_range'):
+        plt.ylim(gym_env.y_range)
+    else:
+        plt.ylim(gym_env.x_range)
+    plt.savefig("chosen_data")
 
 if __name__ == '__main__':
     absl.app.run(main)

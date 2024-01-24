@@ -36,6 +36,15 @@ register(
 )
 
 register(
+    id='multi-maze2d-target-v0',
+    entry_point='envs.two_targets:TargetEnv',
+    max_episode_steps=300,
+    kwargs={
+        'dataset_path':'/mmfs1/gscratch/weirdlab/sriyash/PreferenceTransformer/envs/datasets/multi-maze2d-wall-v0-noisy.hdf5'
+    }
+)
+
+register(
     id='multi-maze2d-rooms-v0',
     entry_point='envs.four_rooms:RoomEnv',
     max_episode_steps=600,

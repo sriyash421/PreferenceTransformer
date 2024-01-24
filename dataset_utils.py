@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from tqdm import tqdm, trange
 import torch
 
-from JaxPref.VAE_R import sample_latent
+from JaxPref.VAE_R import sample_latent, get_latent_from_env
 
 Batch = collections.namedtuple(
     'Batch',
@@ -233,11 +233,13 @@ def reward_from_preference(
     dataset.rewards = new_r.copy()
     return dataset
 
-def reward_from_preference(
-    env_name: str,
+def reward_from_preference_vae(
+    env: gym.Env,
     dataset: D4RLDataset,
     reward_model,
-    batch_size: int = 256,
+    sampling_ratio: float,
+    z_conditioned: bool,
+    mode_n: int,
 ):
     trajs = split_into_trajectories(
         dataset.observations,
@@ -249,20 +251,33 @@ def reward_from_preference(
     )
     new_r = np.zeros_like(dataset.rewards)
 
+    if z_conditioned:
+        new_obs = np.zeros((dataset.observations.shape[0], dataset.observations.shape[1] + reward_model.latent_dim))
+        new_next_obs = np.zeros((dataset.next_observations.shape[0], dataset.next_observations.shape[1] + reward_model.latent_dim))
+        latents = sample_latent(reward_model, len(trajs))
+    else:
+        latents = get_latent_from_env(env, reward_model, mode_n, len(trajs))
     for trj_idx, traj in tqdm(enumerate(trajs), total=len(trajs), desc="chunk trajectories"):
-        _obs = []
-        for _o, _, _, _, _, _ in traj:
+        _obs, _nobs = []
+        for _o, _, _, _, _, _no in traj:
             _obs.append(_o)
+            _nobs.append(_no)
 
         traj_len = len(traj)
         _obs = np.asarray(_obs)
-        _latent = np.repeat(sample_latent(reward_model, 1)[0], _obs.shape[0], axis=0)
+        _latent = np.repeat(latents[trj_idx], _obs.shape[0], axis=0)
 
         inputs = torch.from_numpy(np.concatenate([_obs, _latent], axis=-1)).float().to(next(reward_model.parameters()).device)
         rewards = reward_model.get_reward(inputs).detach().cpu().numpy().flatten()
         new_r[trj_idx: trj_idx+traj_len] = rewards
+        if z_conditioned:
+            new_obs[trj_idx: trj_idx+traj_len] = np.concatenate([_obs, _latent], axis=-1)
+            new_next_obs[trj_idx: trj_idx+traj_len] = np.concatenate([_nobs, _latent], axis=-1)
 
     dataset.rewards = new_r.copy()
+    if z_conditioned:
+        dataset.observations = new_obs.copy()
+        dataset.next_observations = new_next_obs.copy()
     return dataset
 
 def reward_from_preference_transformer(

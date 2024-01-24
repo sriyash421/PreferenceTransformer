@@ -181,7 +181,7 @@ def main(_):
                 with Timer() as train_timer:
                     # train
                     batch = batch_to_jax(index_batch(pref_dataset, shuffled_idx[start_pt:end_pt]))
-                    for key, val in prefix_metrics(reward_model.train(batch), 'reward').items():
+                    for key, val in prefix_metrics(reward_model.train(batch), 'reward/').items():
                         metrics[key].append(val)
             metrics['train_time'] = train_timer()
         else:
@@ -194,7 +194,7 @@ def main(_):
                 eval_start_pt, eval_end_pt = j * FLAGS.batch_size, min((j + 1) * FLAGS.batch_size, pref_eval_dataset["observations"].shape[0])
                 # batch_eval = batch_to_jax(index_batch(pref_eval_dataset, range(eval_start_pt, eval_end_pt)))
                 batch_eval = batch_to_jax(index_batch(pref_eval_dataset, range(eval_start_pt, eval_end_pt)))
-                for key, val in prefix_metrics(reward_model.evaluation(batch_eval), 'reward').items():
+                for key, val in prefix_metrics(reward_model.evaluation(batch_eval), 'reward/').items():
                     metrics[key].append(val)
             if not criteria_key:
                 if "antmaze" in FLAGS.env and not "dense" in FLAGS.env:

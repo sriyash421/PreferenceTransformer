@@ -144,11 +144,13 @@ class RoomEnv(MultiModalEnv):
     def plot_gt(self, wandb_log=False):
         xv, yv = np.meshgrid(np.linspace(*self.x_range, 120), np.linspace(*self.y_range, 160), indexing='ij')
         points = np.concatenate([xv.reshape(-1, 1), yv.reshape(-1, 1)], axis=1)[None]
-        r = [self._mode_0_r(points),self._mode_1_r(points)]
+        rewards = [self._mode_0_r(points),self._mode_1_r(points)]
         fig, axs = plt.subplots(1, 2, figsize=(10, 8))
         axs_flat = axs.flatten()
         for i, ax in enumerate(axs_flat):
-            im = ax.imshow((r[i].reshape(120, 160)).T, cmap='viridis', interpolation='nearest')
+            r = rewards[i].reshape(120, 160)
+            r = (r - r.min()) / (r.max()-r.min())
+            im = ax.imshow(r.T, cmap='viridis', interpolation='nearest')
             ax.scatter(TARGET[0]*10, TARGET[1]*10, c='r')
             ax.scatter(30, 120, c='g')
             ax.scatter(90, 40, c='b')

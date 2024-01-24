@@ -11,10 +11,12 @@ from ml_collections import config_flags
 
 import envs
 import wrappers
-from dataset_utils import D4RLDataset, reward_from_preference, reward_from_preference_transformer, split_into_trajectories
-from evaluation import evaluate
+from dataset_utils import D4RLDataset, reward_from_preference_vae, split_into_trajectories
+from evaluation import evaluate_vae, evaluate
 from learner import Learner
 from logger import Logger
+
+from JaxPref.VAE_R import VAEModel
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.40'
 
@@ -28,6 +30,7 @@ flags.DEFINE_integer('eval_episodes', 10,
 flags.DEFINE_integer('log_interval', 1000, 'Logging interval.')
 flags.DEFINE_integer('eval_interval', 5000, 'Eval interval.')
 flags.DEFINE_integer('batch_size', 256, 'Mini batch size.')
+flags.DEFINE_float('sampling_ratio', 1.0, 'Sampling ratio')
 flags.DEFINE_integer('max_steps', int(1e6), 'Number of training steps.')
 flags.DEFINE_boolean('tqdm', True, 'Use tqdm progress bar.')
 flags.DEFINE_boolean('use_reward_model', False, 'Use reward model for relabeling reward.')
@@ -41,6 +44,9 @@ flags.DEFINE_string('comment',
 flags.DEFINE_integer('seq_len', 25, 'sequence length for relabeling reward in Transformer.')
 flags.DEFINE_bool('use_diff', False, 'boolean whether use difference in sequence for reward relabeling.')
 flags.DEFINE_string('label_mode', 'last', 'mode for relabeling reward with tranformer.')
+flags.DEFINE_string('dataset_path', '', 'path to dataset for reward model training.')
+flags.DEFINE_bool('z_conditioned', True)
+flags.DEFINE_integer('mode_n', 1)
 
 config_flags.DEFINE_config_file(
     'config',
@@ -99,37 +105,21 @@ def make_env_and_dataset(env_name: str,
 
     dataset = D4RLDataset(env)
 
-    if FLAGS.use_reward_model:
-        reward_model = initialize_model()
-        if FLAGS.model_type == "MR":
-            dataset = reward_from_preference(FLAGS.env_name, dataset, reward_model, batch_size=FLAGS.batch_size)
-        else:
-            dataset = reward_from_preference_transformer(
-                FLAGS.env_name,
-                dataset,
-                reward_model,
-                batch_size=FLAGS.batch_size,
-                seq_len=FLAGS.seq_len,
-                use_diff=FLAGS.use_diff,
-                label_mode=FLAGS.label_mode
-            )
-        del reward_model
-
-    if FLAGS.use_reward_model:
-        normalize(dataset, FLAGS.env_name, max_episode_steps=env.env.env._max_episode_steps)
-        if 'antmaze' in FLAGS.env_name or 'maze' in FLAGS.env_name:
-            dataset.rewards -= 1.0
-        if ('halfcheetah' in FLAGS.env_name or 'walker2d' in FLAGS.env_name or 'hopper' in FLAGS.env_name):
-            dataset.rewards += 0.5
+    reward_model = initialize_model()
+    dataset = reward_from_preference_vae(FLAGS.env_name, dataset, reward_model, sampling_ratio=FLAGS.sampling_ratio, z_conditioned=FLAGS.z_conditioned, mode_n=FLAGS.mode_n)
+    if FLAGS.z_conditioned:
+        latent_dim = reward_model.latent_dim
     else:
-        if 'antmaze' in FLAGS.env_name  or 'maze' in FLAGS.env_name:
-            dataset.rewards -= 1.0
-            # See https://github.com/aviralkumar2907/CQL/blob/master/d4rl/examples/cql_antmaze_new.py#L22
-            # but I found no difference between (x - 0.5) * 4 and x - 1.0
-        elif ('halfcheetah' in FLAGS.env_name or 'walker2d' in FLAGS.env_name or 'hopper' in FLAGS.env_name):
-            normalize(dataset, FLAGS.env_name, max_episode_steps=env.env.env._max_episode_steps)
+        latent_dim = 0
 
-    return env, dataset
+    # if FLAGS.use_reward_model:
+    normalize(dataset, FLAGS.env_name, max_episode_steps=env.env.env._max_episode_steps)
+    if 'antmaze' in FLAGS.env_name or 'maze' in FLAGS.env_name:
+        dataset.rewards -= 1.0
+    if ('halfcheetah' in FLAGS.env_name or 'walker2d' in FLAGS.env_name or 'hopper' in FLAGS.env_name):
+        dataset.rewards += 0.5
+
+    return env, dataset, reward_model, latent_dim
 
 
 def initialize_model():
@@ -155,11 +145,11 @@ def main(_):
     os.makedirs(save_dir, exist_ok=True)
     logger = Logger(FLAGS, save_dir)
 
-    env, dataset = make_env_and_dataset(FLAGS.env_name, FLAGS.seed)
-
+    env, dataset, reward_model, latent_dim = make_env_and_dataset(FLAGS.env_name, FLAGS.seed)
+    obs = np.concatenate((env.observation_space.sample(), np.ones(latent_dim)))[np.newaxis]
     kwargs = dict(FLAGS.config)
     agent = Learner(FLAGS.seed,
-                    env.observation_space.sample()[np.newaxis],
+                    obs,
                     env.action_space.sample()[np.newaxis],
                     max_steps=FLAGS.max_steps,
                     **kwargs)
@@ -177,11 +167,14 @@ def main(_):
                     logger.log_histogram(f'training/{k}', v, i)
 
         if i % FLAGS.eval_interval == 0:
-            eval_stats, evaluate_video = evaluate(agent, env, FLAGS.eval_episodes)
+            if FLAGS.z_conditioned:
+                eval_stats = evaluate_vae(agent, env, reward_model, FLAGS.eval_episodes, logger, i)
+            else:
+                eval_stats, evaluate_video = evaluate(agent, env, FLAGS.eval_episodes)
+                logger.log_video('evaluation/episode', evaluate_video, i)
 
             for k, v in eval_stats.items():
                 logger.log(f'evaluation/average_{k}s', v, i)
-            logger.log_video('evaluation/episode', evaluate_video, i)
 
             eval_returns.append((i, eval_stats['return']))
             np.savetxt(os.path.join(save_dir, 'progress.txt'),

@@ -185,5 +185,5 @@ def save_pickle(obj, filename, output_dir):
             
 def prefix_metrics(metrics, prefix):
     return {
-        '{}/{}'.format(prefix, key): value for key, value in metrics.items()
+        '{}{}'.format(prefix, key): value for key, value in metrics.items()
     }

@@ -62,7 +62,7 @@ def new_get_trj_idx(env, terminate_on_end=False, **kwargs):
     return trj_idx_list
 
 
-def get_queries_from_multi(env, dataset, num_query, len_query, len_set, data_dir=None, balance=False, label_type=0, skip_flag=0):
+def get_queries_from_multi(env, dataset, num_query, len_query, len_set, data_dir=None, balance=False, label_type=0, skip_flag=1):
     
     _num_query = num_query
     num_query *= len_set
@@ -208,7 +208,8 @@ def get_queries_from_multi(env, dataset, num_query, len_query, len_set, data_dir
     with open(query_path, "wb") as fp:
         pickle.dump(batch, fp)
 
-    return query_path
+    all_obs = np.concatenate([batch['observations'], batch['observations_2']], axis=0).reshape(-1, observation_dim)
+    return query_path, all_obs
 
 
 def find_time_idx(trj_idx_list, idx):
@@ -533,3 +534,54 @@ def get_query_dataset_from_path(query_path, observation_dim, action_dim):
         'labels': batch['labels'][train_data_size:],
     }
     return train_batch, eval_batch
+
+#  for query_count in tqdm(range(num_query), desc="get queries"):
+#         while True:
+#             traj1, traj2 = np.random.choice(len(trj_idx_list) - 1, 2, replace=False)
+#             len_trj1, len_trj2 = trj_len_list[traj1], trj_len_list[traj2]
+#             if len_trj1 < len_query or len_trj2 < len_query:
+#                 continue
+
+#             time_idx1 = np.random.choice(len_trj1 - len_query + 1)
+#             time_idx2 = np.random.choice(len_trj2 - len_query + 1)
+
+#             start_idx1 = trj_idx_list[traj1][0] + time_idx1
+#             end_idx1 = start_idx1 + len_query
+#             start_idx2 = trj_idx_list[traj2][0] + time_idx2
+#             end_idx2 = start_idx2 + len_query
+
+#             # assert end_idx1 <= trj_idx_list[traj1][1] + 1
+#             # assert end_idx2 <= trj_idx_list[traj2][1] + 1
+
+#             reward_seq1 = dataset['rewards'][start_idx1:end_idx1]
+#             reward_seq2 = dataset['rewards'][start_idx2:end_idx2]
+#             if skip_flag == 1:
+#                 if np.sum(reward_seq1) == np.sum(reward_seq2):
+#                         continue
+            
+#             obs_seq1 = dataset['observations'][start_idx1:end_idx1]
+#             obs_seq2 = dataset['observations'][start_idx2:end_idx2]
+#             next_obs_seq1 = dataset['next_observations'][start_idx1:end_idx1]
+#             next_obs_seq2 = dataset['next_observations'][start_idx2:end_idx2]
+#             act_seq1 = dataset['actions'][start_idx1:end_idx1]
+#             act_seq2 = dataset['actions'][start_idx2:end_idx2]
+#             timestep_seq1 = np.arange(1, len_query + 1)
+#             timestep_seq2 = np.arange(1, len_query + 1)
+
+#             start_indices_1[query_count] = start_idx1
+#             start_indices_2[query_count] = start_idx2
+#             time_indices_1[query_count] = time_idx1
+#             time_indices_2[query_count] = time_idx2
+
+#             total_reward_seq_1[query_count] = reward_seq1
+#             total_reward_seq_2[query_count] = reward_seq2
+#             total_obs_seq_1[query_count] = obs_seq1
+#             total_obs_seq_2[query_count] = obs_seq2
+#             total_next_obs_seq_1[query_count] = next_obs_seq1
+#             total_next_obs_seq_2[query_count] = next_obs_seq2
+#             total_act_seq_1[query_count] = act_seq1
+#             total_act_seq_2[query_count] = act_seq2
+#             total_timestep_1[query_count] = timestep_seq1
+#             total_timestep_2[query_count] = timestep_seq2
+
+#             break

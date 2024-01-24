@@ -49,5 +49,10 @@ if __name__ == "__main__":
         plt.scatter(all_obs[start, 0], all_obs[start, 1], c='orange')
         plt.plot(all_obs[start:end+1, 0], all_obs[start:end+1, 1], c=f'C{i}')
     plt.scatter(target_goal[0], target_goal[1], c='r')
+    plt.xlim(env.x_range)
+    if hasattr(env, 'y_range'):
+        plt.ylim(env.y_range)
+    else:
+        plt.ylim(env.x_range)
     plt.savefig(f'{args.env_name}.png')
 

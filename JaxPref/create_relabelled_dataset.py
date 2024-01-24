@@ -60,25 +60,33 @@ def main(_):
 
     with open(FLAGS.query_path, 'rb') as f:
         data = pickle.load(f)
+    # data['labels'] = np.zeros(data['labels'].shape[:-1], dtype=data['labels'].dtype)
     for i in tqdm(range(len(data['observations']))):
         seg_reward_1, seg_reward_2 = gym_env.get_preference_rewards(data['observations'][i], data['observations_2'][i])
-        if label_type == 0: # perfectly rational
-            sum_r_t_1 = np.sum(seg_reward_1, axis=1)
-            sum_r_t_2 = np.sum(seg_reward_2, axis=1)
-            binary_label = 1*(sum_r_t_1 < sum_r_t_2)
-            rational_labels = np.zeros((len(binary_label), 2))
-            rational_labels[np.arange(binary_label.size), binary_label] = 1.0
-        elif label_type == 1:
-            sum_r_t_1 = np.sum(seg_reward_1, axis=1)
-            sum_r_t_2 = np.sum(seg_reward_2, axis=1)
-            binary_label = 1*(sum_r_t_1 < sum_r_t_2)
-            rational_labels = np.zeros((len(binary_label), 2))
-            rational_labels[np.arange(binary_label.size), binary_label] = 1.0
-            margin_index = (np.abs(sum_r_t_1 - sum_r_t_2) <= 0).reshape(-1)
-            rational_labels[margin_index] = 0.5
+        # sum_r_t_1 = np.sum(seg_reward_1, axis=1)
+        # sum_r_t_2 = np.sum(seg_reward_2, axis=1)
+        # binary_label = 1*(sum_r_t_1 > sum_r_t_2)
+        # data['labels'][i] = binary_label
+
+        # rational_labels = np.zeros((len(binary_label), 2))
+        # rational_labels[np.arange(binary_label.size), binary_label] = 1.0
+        # if label_type == 0: # perfectly rational
+        sum_r_t_1 = np.sum(seg_reward_1, axis=1)
+        sum_r_t_2 = np.sum(seg_reward_2, axis=1)
+        binary_label = 1*(sum_r_t_1 < sum_r_t_2)
+        rational_labels = np.zeros((len(binary_label), 2))
+        rational_labels[np.arange(binary_label.size), binary_label] = 1.0
         data['labels'][i] = rational_labels
+        # elif label_type == 1:
+        #     sum_r_t_1 = np.sum(seg_reward_1, axis=1)
+        #     sum_r_t_2 = np.sum(seg_reward_2, axis=1)
+        #     binary_label = 1*(sum_r_t_1 < sum_r_t_2)
+        #     rational_labels = np.zeros((len(binary_label), 2))
+        #     rational_labels[np.arange(binary_label.size), binary_label] = 1.0
+        #     margin_index = (np.abs(sum_r_t_1 - sum_r_t_2) <= 0).reshape(-1)
+        #     rational_labels[margin_index] = 0.5
     
-    relabelled_path = os.path.join(os.path.dirname(FLAGS.query_path), 'relabelled.pkl')
+    relabelled_path = str(FLAGS.query_path).replace("queries", "relabelled_queries")
     with open(relabelled_path, 'wb') as f:
         pickle.dump(data, f)
     gym_env.plot_gt()

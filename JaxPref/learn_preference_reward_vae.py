@@ -21,8 +21,8 @@ import JaxPref.reward_transform as r_tf
 from .sampler import TrajSampler
 from viskit.logging import logger, setup_logger
 from .VAE_R import VAEModel, PreferenceDataset, Annealer
-from .utils import define_flags_with_default, set_random_seed, get_user_flags, WandBLogger, save_pickle
-from .visualise_reward import plot_values_2d, plot_values_2d_with_z, plot_train_values
+from .utils import define_flags_with_default, set_random_seed, get_user_flags, WandBLogger, save_pickle, prefix_metrics
+from .visualise_reward import plot_values_2d, plot_values_2d_with_z, plot_train_values, plot_latents, plot_prior
 # Jax memory
 # os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.50'
@@ -82,30 +82,11 @@ FLAGS_DEF = define_flags_with_default(
     learned_prior=False,
     latent_dim=32,
     use_annealing=False,
+    hidden_dim=256,
+    flow_prior=False,
 )
 
 from torch.optim import Adam
-
-def loss_function(x_hat, x, mean, log_var, model, kl_loss_weight, kl_annealer, prefix='train'):
-    reproduction_loss = torch.nn.functional.binary_cross_entropy(x_hat, x, reduction='sum')
-    _KLD      = - torch.sum(1+ (log_var-model.log_var) - (log_var-model.log_var).exp() - (mean.pow(2)-model.mean.pow(2))/(model.log_var.exp()))
-
-    if kl_annealer:
-        KLD = kl_annealer(_KLD)
-    else:
-        KLD = _KLD * kl_loss_weight
-    
-    predicted_class = torch.argmax(x_hat, axis=1)
-    target_class = torch.argmax(x, axis=1)
-    accuracy = torch.mean((predicted_class == target_class).float())
-
-    metrics = {
-        f"{prefix}reproduction_loss": reproduction_loss.item(),
-        f"{prefix}KLD": _KLD.item(),
-        f"{prefix}rf_loss": reproduction_loss.item() + KLD.item(),
-        f"{prefix}rf_accuracy": accuracy.item(),
-    }
-    return reproduction_loss + KLD, metrics
 
 
 def main(_):
@@ -196,10 +177,17 @@ def main(_):
     latent_dim = FLAGS.latent_dim
     kl_weight = FLAGS.kl_weight
     learned_prior = FLAGS.learned_prior
+    flow_prior = FLAGS.flow_prior
 
-    reward_model = VAEModel(set_len*(2*observation_dim*query_len+2), observation_dim+latent_dim, latent_dim, set_len, query_len, learned_prior)
+    assert not (flow_prior and learned_prior)
+
+    reward_model = VAEModel(encoder_input=set_len*(2*observation_dim*query_len+2), 
+                            decoder_input=observation_dim+latent_dim, 
+                            latent_dim=latent_dim, hidden_dim=256, annotation_size=set_len,
+                            size_segment=query_len, learned_prior=learned_prior, flow_prior=flow_prior)
+
     optimizer = Adam(reward_model.parameters(), lr=FLAGS.lr)
-    train_loss = "train/loss"
+    # train_loss = "train/loss"
 
     reward_model.to(device)
 
@@ -212,58 +200,68 @@ def main(_):
         metrics = defaultdict(list)
         metrics['epoch'] = epoch
         if epoch:
+            all_obs = []
+            all_r = []
             for batch_idx, batch in enumerate(train_loader):
                 optimizer.zero_grad()
 
                 sa_t_1 = (batch['observations']).float().to(device)
                 sa_t_2 = (batch['observations_2']).float().to(device)
                 labels = (batch['labels']).squeeze().float().to(device).view(-1, 2)
-                # get logits
-                r_hat1, r_hat2, mean, log_var = reward_model(sa_t_1, sa_t_2, labels)
-                r_hat1 = r_hat1.sum(axis=2)
-                r_hat2 = r_hat2.sum(axis=2)
-                labels = labels
-                
-                r_hat = torch.cat([r_hat1, r_hat2], axis=-1).view(-1, 2)
-                
-                # compute loss
-                loss, batch_metrics = loss_function(r_hat, labels, mean, log_var, reward_model, kl_weight, prefix='train')
+
+                if kl_annealer:
+                    kl_weight = kl_annealer.slope()
+                loss, r_hat1, r_hat2, batch_metrics = reward_model(sa_t_1, sa_t_2, labels, kl_weight)
 
                 loss.backward()
                 optimizer.step()
 
-                for key, val in batch_metrics.items():
+                for key, val in prefix_metrics(batch_metrics, 'train/').items():
                     metrics[key].append(val)
-        else:
-            # for using early stopping with train loss.
-            metrics[train_loss] = [float(FLAGS.query_len)]
+                
+                all_obs.extend(sa_t_1.view(-1, 2).cpu().numpy())
+                all_obs.extend(sa_t_2.view(-1, 2).cpu().numpy())
+                all_r.extend(r_hat1.view(-1, 1).detach().cpu().numpy())
+                all_r.extend(r_hat2.view(-1, 1).detach().cpu().numpy())
+            
+            all_obs = np.array(all_obs)
+            all_r = np.array(all_r)
 
-        if kl_annealer:
-            wb_logger.log({"train/kl_weight": kl_annealer.slope()})
-            kl_annealer.step()
-        else:
-            wb_logger.log({"train/kl_weight": kl_weight})
+            if epoch %20 == 0:
+                fig = plot_train_values(all_obs, all_r, gym_env)
+                wb_logger.log_image(fig, "train_reward_plots")
+
         # eval phase
         if epoch % FLAGS.eval_period == 0:
+            all_obs = []
+            all_r = []
             for batch_idx, batch in enumerate(test_loader):
                 with torch.no_grad():
                     sa_t_1 = (batch['observations']).float().to(device)
                     sa_t_2 = (batch['observations_2']).float().to(device)
                     labels = (batch['labels']).squeeze().float().to(device).view(-1, 2)
-                    # get logits
-                    r_hat1, r_hat2, mean, log_var = reward_model(sa_t_1, sa_t_2, labels)
-                    r_hat1 = r_hat1.sum(axis=2)
-                    r_hat2 = r_hat2.sum(axis=2)
-                    labels = labels
-                
-                    r_hat = torch.cat([r_hat1, r_hat2], axis=-1).view(-1, 2)
-                
-                    # compute loss
-                    loss, batch_metrics = loss_function(r_hat, labels, mean, log_var, reward_model, kl_weight, prefix='test')
-                    for key, val in batch_metrics.items():
+
+                    if kl_annealer:
+                        kl_weight = kl_annealer.slope()
+                    loss, r_hat1, r_hat2, batch_metrics = reward_model(sa_t_1, sa_t_2, labels, kl_weight)
+
+
+                    for key, val in prefix_metrics(batch_metrics, 'reward/eval_').items():
                         metrics[key].append(val)
-            
-            criteria = np.mean(metrics["train/loss"])
+                    
+                    all_obs.extend(sa_t_1.view(-1, 2).cpu().numpy())
+                    all_obs.extend(sa_t_2.view(-1, 2).cpu().numpy())
+                    all_r.extend(r_hat1.view(-1, 1).detach().cpu().numpy())
+                    all_r.extend(r_hat2.view(-1, 1).detach().cpu().numpy())
+                     
+
+            all_obs = np.array(all_obs)
+            all_r = np.array(all_r)
+            if epoch %20 == 0:
+                fig = plot_train_values(all_obs, all_r, gym_env)
+                wb_logger.log_image(fig, "test_reward_plots")
+
+            criteria = np.mean(metrics["train/rf_loss"])
             has_improved, early_stop = early_stop.update(criteria)
             if early_stop.should_stop and FLAGS.early_stop:
                 for key, val in metrics.items():
@@ -280,10 +278,16 @@ def main(_):
                 save_data = {"reward_model": reward_model, "variant": variant, "epoch": epoch}
                 save_pickle(save_data, "best_model.pkl", save_dir)
 
-        if epoch % 100 == 0:
+        if kl_annealer:
+            kl_annealer.step()
+
+        if epoch % 20 == 0:
             fig = plot_values_2d_with_z(gym_env, reward_model, pref_dataset, label_type, "reward_plot")
             wb_logger.log_image(fig, "reward_plots")
             gym_env.plot_gt(True)
+            fig = plot_latents(gym_env, reward_model, pref_dataset, label_type, "latent_plot")
+            wb_logger.log_image(fig, "latent_plots")
+            plot_prior(latent_dim, reward_model)
 
         for key, val in metrics.items():
             if isinstance(val, list):
